@@ -14,8 +14,10 @@ import {
   SwapIcon
 } from 'tdesign-icons-vue-next';
 import TokenEditor from './components/TokenEditor.vue';
+import MigrationView from './components/MigrationView.vue';
 import { fetchTokens, submitRelease, type Token } from './api';
 import { useTokenStore } from './store';
+import { useMigrationStore } from './migration/store';
 
 const AddButtonIcon = () => h(AddIcon);
 const ArrowRightButtonIcon = () => h(ArrowRightIcon);
@@ -29,6 +31,8 @@ const SwapButtonIcon = () => h(SwapIcon);
 const route = useRoute();
 const router = useRouter();
 const store = useTokenStore();
+const migrationStore = useMigrationStore();
+const migrationBadge = computed(() => migrationStore.pendingEntries.length + migrationStore.pending.length);
 const { data: remote } = useQuery({ queryKey: ['tokens'], queryFn: fetchTokens });
 const selectedVersion = ref(store.releaseVersion);
 const batchFrom = ref('');
@@ -40,6 +44,7 @@ const releaseResult = ref('');
 
 const nav = [
   { path: '/', label: '令牌工作区', icon: 'token' },
+  { path: '/migration', label: '颜色令牌下线迁移', icon: 'swap' },
   { path: '/graph', label: '依赖与校验', icon: 'control-platform' },
   { path: '/review', label: '变更评审', icon: 'git-commit' },
   { path: '/publish', label: '主题发布', icon: 'send' }
@@ -84,6 +89,8 @@ const releaseMutation = useMutation({
 watch(remote, (value) => {
   if (value && !store.tokens.length) value.tokens.forEach((token) => store.addToken(token));
 });
+
+migrationStore.initChannel();
 
 function go(path: string) {
   router.push(path);
@@ -158,7 +165,7 @@ function publish() {
     <t-layout class="body-layout">
       <t-aside class="side-nav">
         <div class="workspace-card"><t-icon name="layers" /><div><span>当前工作区</span><strong>通用组件库 · 品牌主题</strong><small>15 个令牌 · 4 个主题变体</small></div></div>
-        <nav><button v-for="item in nav" :key="item.path" :class="{ active: route.path === item.path }" @click="go(item.path)"><t-icon :name="item.icon" /><span>{{ item.label }}</span><t-badge v-if="item.path === '/review'" :count="store.changes.filter(c => c.status === '待评审').length" /></button></nav>
+        <nav><button v-for="item in nav" :key="item.path" :class="{ active: route.path === item.path }" @click="go(item.path)"><t-icon :name="item.icon" /><span>{{ item.label }}</span><t-badge v-if="item.path === '/review'" :count="store.changes.filter(c => c.status === '待评审').length" /><t-badge v-else-if="item.path === '/migration' && migrationBadge" :count="migrationBadge" /></button></nav>
         <div class="save-state"><t-icon name="cloud-done" /><div><span>草稿已保存</span><small>{{ new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</small></div></div>
       </t-aside>
       <t-content class="main-content">
@@ -198,6 +205,10 @@ function publish() {
             </div>
             <div class="panel validation-summary"><div class="panel-head"><div><strong>快速校验</strong><span>发布前门禁摘要</span></div><strong class="score">{{ store.releaseReadiness }}%</strong></div><div class="summary-row" :class="{ bad: store.cycleNodes.length }"><span>循环依赖</span><strong>{{ store.cycleNodes.length ? `${store.cycleNodes.length} 个节点` : '未发现' }}</strong></div><div class="summary-row" :class="{ bad: store.invalidReferences.length }"><span>无效引用</span><strong>{{ store.invalidReferences.length || '未发现' }}</strong></div><div class="summary-row" :class="{ bad: store.contrastIssues.length }"><span>对比度</span><strong>{{ store.contrastIssues.length ? '需调整' : '符合 AA' }}</strong></div><div class="summary-row"><span>命名冲突</span><strong>未发现</strong></div></div>
           </aside>
+        </section>
+
+        <section v-else-if="route.path === '/migration'">
+          <MigrationView />
         </section>
 
         <section v-else-if="route.path === '/graph'" class="graph-page panel">
